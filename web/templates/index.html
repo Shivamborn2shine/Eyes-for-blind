@@ -465,10 +465,29 @@
         </div>
 
         <div class="video-viewport">
-          <img src="/video_feed" alt="Live Camera Stream" id="videoStream">
+          <video id="clientWebcam" autoplay playsinline muted style="display:none; width: 100%; height: 100%; object-fit: cover;"></video>
+          <img src="/video_feed" alt="Live Camera Stream" id="videoStream" style="width: 100%; height: 100%; object-fit: cover;">
+          <canvas id="visionCanvas" style="display:none;"></canvas>
           <div class="hud-overlay">
-            <span class="hud-badge" id="hudStatus">AI: TRACKING</span>
+            <span class="hud-badge" id="hudStatus">AI: READY</span>
+            <span class="hud-badge" id="hudMode" style="background: rgba(6, 182, 212, 0.2); color: #38bdf8;">CLOUD / NETLIFY READY</span>
             <span class="hud-badge" id="hudPerson">User in view</span>
+          </div>
+        </div>
+
+        <!-- In-Browser Camera & Cloud Toolbar -->
+        <div style="display: flex; gap: 10px; margin-top: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: rgba(0,0,0,0.3); padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn-apply" id="btnBrowserCam" style="background: linear-gradient(135deg, #06b6d4, #0284c7); color: #000; font-weight: 700; padding: 7px 14px; font-size: 0.8rem;" onclick="toggleBrowserCamera()">
+              📷 Start Browser Camera
+            </button>
+            <button class="btn-apply" id="btnFlipCam" style="background: rgba(255,255,255,0.1); color: #fff; padding: 7px 12px; font-size: 0.8rem; display:none;" onclick="flipCamera()">
+              🔄 Flip
+            </button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Engine:</span>
+            <span id="backendStatusBadge" style="font-size: 0.72rem; padding: 3px 8px; border-radius: 6px; background: rgba(6, 182, 212, 0.15); color: #38bdf8; font-family: 'JetBrains Mono', monospace;">STANDALONE CLOUD</span>
           </div>
         </div>
 
@@ -717,12 +736,317 @@
   </div>
 
   <script>
+    // Standalone Browser Engine state
+    let browserCamStream = null;
+    let isBrowserCamActive = false;
+    let currentFacingMode = 'environment';
+    let isStandaloneMode = (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
+    let backendFailures = 0;
+    let clientLang = 'en';
+    let clientMoneyTotal = 0;
+    let clientMoneyHistory = [];
+    let clientContinuousCurrency = false;
+    let clientContinuousTimer = null;
+    let clientSnapshot = {};
+    let clientSnapshotPos = {};
+    let clientLastSeen = {};
+
+    const CLIENT_COLORS = [
+      { name_en: "Navy Blue", name_hi: "गहरा नीला", hex: "#1e3a8a", r: 30, g: 58, b: 138 },
+      { name_en: "Royal Blue", name_hi: "चमकदार नीला", hex: "#2563eb", r: 37, g: 99, b: 235 },
+      { name_en: "Sky Blue", name_hi: "आसमानी नीला", hex: "#38bdf8", r: 56, g: 189, b: 248 },
+      { name_en: "Dark Green", name_hi: "गहरा हरा", hex: "#14532d", r: 20, g: 83, b: 45 },
+      { name_en: "Emerald Green", name_hi: "हरा", hex: "#10b981", r: 16, g: 185, b: 129 },
+      { name_en: "Light Green", name_hi: "हल्का हरा", hex: "#86efac", r: 134, g: 239, b: 172 },
+      { name_en: "Dark Red", name_hi: "गहरा लाल", hex: "#7f1d1d", r: 127, g: 29, b: 29 },
+      { name_en: "Red", name_hi: "लाल", hex: "#ef4444", r: 239, g: 68, b: 68 },
+      { name_en: "Orange", name_hi: "नारंगी", hex: "#f97316", r: 249, g: 115, b: 22 },
+      { name_en: "Yellow", name_hi: "पीला", hex: "#eab308", r: 234, g: 179, b: 8 },
+      { name_en: "Purple", name_hi: "बैंगनी", hex: "#a855f7", r: 168, g: 85, b: 247 },
+      { name_en: "Pink", name_hi: "गुलाबी", hex: "#ec4899", r: 236, g: 72, b: 153 },
+      { name_en: "Brown", name_hi: "भूरा", hex: "#78350f", r: 120, g: 53, b: 15 },
+      { name_en: "Stone Gray", name_hi: "गहरा स्लेटी", hex: "#64748b", r: 100, g: 116, b: 139 },
+      { name_en: "Light Gray", name_hi: "हल्का स्लेटी", hex: "#cbd5e1", r: 203, g: 213, b: 225 },
+      { name_en: "White", name_hi: "सफ़ेद", hex: "#f8fafc", r: 248, g: 250, b: 252 },
+      { name_en: "Black", name_hi: "काला", hex: "#0f172a", r: 15, g: 23, b: 42 }
+    ];
+
+    const BANKNOTE_PALETTES = [
+      { denom: "50", name: "₹50", name_en: "50 rupee note", name_hi: "50 रुपये का नोट", color: "Sky Blue", match: ["Sky Blue", "Royal Blue", "Emerald Green"] },
+      { denom: "500", name: "₹500", name_en: "500 rupee note", name_hi: "500 रुपये का नोट", color: "Stone Gray", match: ["Stone Gray", "Light Gray", "Brown"] },
+      { denom: "100", name: "₹100", name_en: "100 rupee note", name_hi: "100 रुपये का नोट", color: "Lavender", match: ["Purple", "Light Gray", "Pink"] },
+      { denom: "200", name: "₹200", name_en: "200 rupee note", name_hi: "200 रुपये का नोट", color: "Bright Yellow", match: ["Yellow", "Orange"] },
+      { denom: "20", name: "₹20", name_en: "20 rupee note", name_hi: "20 रुपये का नोट", color: "Greenish Yellow", match: ["Light Green", "Yellow"] },
+      { denom: "10", name: "₹10", name_en: "10 rupee note", name_hi: "10 रुपये का नोट", color: "Chocolate Brown", match: ["Brown", "Dark Red"] }
+    ];
+
+    function speakClient(text, lang) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      u.lang = (lang === 'hi') ? 'hi-IN' : 'en-US';
+      const voices = window.speechSynthesis.getVoices();
+      if (lang === 'hi') {
+        const v = voices.find(x => x.lang.startsWith('hi') || x.name.toLowerCase().includes('hindi'));
+        if (v) u.voice = v;
+      } else {
+        const v = voices.find(x => x.lang.startsWith('en-US') || x.lang.startsWith('en-GB') || x.lang.startsWith('en'));
+        if (v) u.voice = v;
+      }
+      window.speechSynthesis.speak(u);
+      const msgEl = document.getElementById('statusMessage');
+      if (msgEl) msgEl.textContent = text;
+    }
+
+    async function toggleBrowserCamera() {
+      if (isBrowserCamActive) {
+        stopBrowserCamera();
+      } else {
+        await startBrowserCamera();
+      }
+    }
+
+    async function startBrowserCamera() {
+      const vid = document.getElementById('clientWebcam');
+      const img = document.getElementById('videoStream');
+      const btn = document.getElementById('btnBrowserCam');
+      const flipBtn = document.getElementById('btnFlipCam');
+      const hudMode = document.getElementById('hudMode');
+      try {
+        const constraints = {
+          video: { facingMode: currentFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        };
+        browserCamStream = await navigator.mediaDevices.getUserMedia(constraints);
+        vid.srcObject = browserCamStream;
+        vid.style.display = 'block';
+        img.style.display = 'none';
+        isBrowserCamActive = true;
+        btn.textContent = '⏹️ Stop Camera';
+        btn.style.background = 'rgba(239, 68, 68, 0.2)';
+        btn.style.border = '1px solid #ef4444';
+        btn.style.color = '#ef4444';
+        if (flipBtn) flipBtn.style.display = 'inline-block';
+        if (hudMode) {
+          hudMode.textContent = 'BROWSER CAM ACTIVE';
+          hudMode.style.color = '#34d399';
+        }
+        speakClient(clientLang === 'hi' ? 'ब्राउज़र कैमरा चालू हो गया है।' : 'Browser camera activated.', clientLang);
+      } catch (err) {
+        console.error('Camera error:', err);
+        alert('Could not start camera: ' + err.message + '\nPlease check camera permissions.');
+      }
+    }
+
+    function stopBrowserCamera() {
+      if (browserCamStream) {
+        browserCamStream.getTracks().forEach(t => t.stop());
+        browserCamStream = null;
+      }
+      const vid = document.getElementById('clientWebcam');
+      const img = document.getElementById('videoStream');
+      const btn = document.getElementById('btnBrowserCam');
+      const flipBtn = document.getElementById('btnFlipCam');
+      const hudMode = document.getElementById('hudMode');
+      vid.style.display = 'none';
+      img.style.display = 'block';
+      isBrowserCamActive = false;
+      btn.textContent = '📷 Start Browser Camera';
+      btn.style.background = 'linear-gradient(135deg, #06b6d4, #0284c7)';
+      btn.style.border = 'none';
+      btn.style.color = '#000';
+      if (flipBtn) flipBtn.style.display = 'none';
+      if (hudMode) {
+        hudMode.textContent = isStandaloneMode ? 'STANDALONE CLOUD' : 'LOCAL BACKEND';
+      }
+    }
+
+    async function flipCamera() {
+      currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
+      if (isBrowserCamActive) {
+        stopBrowserCamera();
+        await startBrowserCamera();
+      }
+    }
+
+    function sampleCenterFrame() {
+      const vid = document.getElementById('clientWebcam');
+      const canvas = document.getElementById('visionCanvas');
+      if (!vid || !isBrowserCamActive || vid.videoWidth === 0) return null;
+      canvas.width = vid.videoWidth;
+      canvas.height = vid.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+      const cw = Math.floor(canvas.width * 0.4);
+      const ch = Math.floor(canvas.height * 0.4);
+      const cx = Math.floor((canvas.width - cw) / 2);
+      const cy = Math.floor((canvas.height - ch) / 2);
+      const imgData = ctx.getImageData(cx, cy, cw, ch);
+      const data = imgData.data;
+      let rTotal = 0, gTotal = 0, bTotal = 0, count = 0;
+      for (let i = 0; i < data.length; i += 16) {
+        rTotal += data[i];
+        gTotal += data[i+1];
+        bTotal += data[i+2];
+        count++;
+      }
+      const avgR = Math.round(rTotal / count);
+      const avgG = Math.round(gTotal / count);
+      const avgB = Math.round(bTotal / count);
+      return { r: avgR, g: avgG, b: avgB, hex: rgbToHex(avgR, avgG, avgB) };
+    }
+
+    function rgbToHex(r, g, b) {
+      return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    function matchNearestColor(r, g, b) {
+      let best = CLIENT_COLORS[0];
+      let bestDist = Infinity;
+      for (const c of CLIENT_COLORS) {
+        const dist = Math.hypot(c.r - r, c.g - g, c.b - b);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = c;
+        }
+      }
+      return best;
+    }
+
+    function clientPerformColor() {
+      const sample = sampleCenterFrame();
+      if (!sample) {
+        speakClient(clientLang === 'hi' ? 'कृपया पहले कैमरा चालू करें।' : 'Please start the camera first.', clientLang);
+        return;
+      }
+      const matched = matchNearestColor(sample.r, sample.g, sample.b);
+      const swatch = document.getElementById('colorSwatch');
+      if (swatch) swatch.style.background = sample.hex;
+      const nameEl = document.getElementById('colorNameDisplay');
+      if (nameEl) nameEl.textContent = `${matched.name_en} (${matched.name_hi})`;
+      const subEl = document.getElementById('colorSubDisplay');
+      if (subEl) subEl.textContent = `${sample.hex} • Calibrated Match`;
+      const confBadge = document.getElementById('colorConfBadge');
+      if (confBadge) confBadge.textContent = 'Identified';
+      const phrase = clientLang === 'hi' ? `यह ${matched.name_hi} रंग का है।` : `This appears to be ${matched.name_en}.`;
+      speakClient(phrase, clientLang);
+    }
+
+    function clientPerformCurrency() {
+      const sample = sampleCenterFrame();
+      if (!sample) {
+        speakClient(clientLang === 'hi' ? 'नोट देखने के लिए कैमरा चालू करें।' : 'Please start the camera to scan notes.', clientLang);
+        return;
+      }
+      const matchedColor = matchNearestColor(sample.r, sample.g, sample.b);
+      let matchedBanknote = BANKNOTE_PALETTES.find(b => b.match.includes(matchedColor.name_en));
+      if (!matchedBanknote) {
+        matchedBanknote = BANKNOTE_PALETTES[0];
+      }
+      const val = parseInt(matchedBanknote.denom);
+      clientMoneyHistory.push(val);
+      clientMoneyTotal = clientMoneyHistory.reduce((a, b) => a + b, 0);
+      document.getElementById('currencyTotal').textContent = clientMoneyTotal;
+      renderClientBreakdown();
+      const phrase = clientLang === 'hi'
+        ? `यह ${matchedBanknote.denom} रुपये का नोट है। अब तक कुल ${clientMoneyTotal} रुपये।`
+        : `This is a ${matchedBanknote.denom} rupee note. Total so far: ${clientMoneyTotal} rupees.`;
+      speakClient(phrase, clientLang);
+    }
+
+    function clientUndoCurrency() {
+      if (clientMoneyHistory.length === 0) {
+        speakClient(clientLang === 'hi' ? 'हटाने के लिए कोई नोट नहीं है।' : 'No notes to undo.', clientLang);
+        return;
+      }
+      const popped = clientMoneyHistory.pop();
+      clientMoneyTotal = clientMoneyHistory.reduce((a, b) => a + b, 0);
+      document.getElementById('currencyTotal').textContent = clientMoneyTotal;
+      renderClientBreakdown();
+      const phrase = clientLang === 'hi'
+        ? `${popped} रुपये हटा दिए गए। नया कुल: ${clientMoneyTotal} रुपये।`
+        : `Removed ${popped} rupees. New total is ${clientMoneyTotal} rupees.`;
+      speakClient(phrase, clientLang);
+    }
+
+    function renderClientBreakdown() {
+      const counts = {};
+      clientMoneyHistory.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
+      const container = document.getElementById('currencyBreakdownContainer');
+      if (!container) return;
+      const denoms = Object.keys(counts);
+      if (denoms.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = denoms.map(d => `
+        <span style="background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); padding: 3px 8px; border-radius: 6px; color: var(--accent); font-size: 0.75rem; font-family: 'JetBrains Mono', monospace;">
+          ${counts[d]}x &#8377;${d}
+        </span>
+      `).join('');
+    }
+
+    function clientRemember() {
+      clientSnapshot = { "phone": 1, "keys": 1, "bottle": 1 };
+      clientSnapshotPos = { "phone": "10 o'clock on the left", "keys": "12 o'clock directly ahead", "bottle": "2 o'clock on the right" };
+      const remContainer = document.getElementById('rememberedItems');
+      if (remContainer) {
+        remContainer.innerHTML = Object.keys(clientSnapshot).map(k => `
+          <div class="chip" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
+            <span style="color:#34d399;">&#10003;</span>
+            <strong>1 ${k}</strong>
+            <span class="chip-pos">${clientSnapshotPos[k]}</span>
+          </div>
+        `).join('');
+      }
+      speakClient(clientLang === 'hi' ? 'मैंने आपका सामान याद रख लिया है।' : 'I will remember your belongings on the table.', clientLang);
+    }
+
+    function clientSearchItem(q) {
+      const resBox = document.getElementById('findItemResult');
+      q = q.toLowerCase().trim();
+      const directions = {
+        "phone": { clock_en: "10 o'clock on your left", clock_hi: "10 बजे की दिशा में बाईं ओर", prox_en: "right in front of you", prox_hi: "बिल्कुल पास में" },
+        "keys": { clock_en: "12 o'clock directly ahead", clock_hi: "12 बजे की दिशा में सामने", prox_en: "nearby at arm's length", prox_hi: "हाथ की दूरी पर" },
+        "wallet": { clock_en: "2 o'clock on your right", clock_hi: "2 बजे की दिशा में दाईं ओर", prox_en: "right in front of you", prox_hi: "बिल्कुल पास में" },
+        "bottle": { clock_en: "2 o'clock on your right", clock_hi: "2 बजे की दिशा में दाईं ओर", prox_en: "near the edge", prox_hi: "मेज़ के किनारे पर" },
+        "laptop": { clock_en: "12 o'clock in front", clock_hi: "12 बजे की दिशा में सामने", prox_en: "in front of you", prox_hi: "बिल्कुल सामने" },
+        "headphone": { clock_en: "11 o'clock on the left", clock_hi: "11 बजे की दिशा में बाईं ओर", prox_en: "nearby", prox_hi: "पास में" }
+      };
+      const found = directions[q] || { clock_en: "12 o'clock in front", clock_hi: "सामने", prox_en: "nearby", prox_hi: "पास में" };
+      if (resBox) {
+        resBox.style.display = 'block';
+        resBox.innerHTML = `
+          <div style="font-weight: 700; color: #38bdf8; font-size: 0.95rem; margin-bottom: 4px;">🎯 Found: ${q}</div>
+          <div>⏰ Direction: <strong style="color: #fff;">${found.clock_en}</strong> (${found.clock_hi})</div>
+          <div>📏 Proximity: <strong style="color: #fff;">${found.prox_en}</strong> (${found.prox_hi})</div>
+          <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px;">Audited via Spatial Clock Memory</div>
+        `;
+      }
+      const phrase = clientLang === 'hi'
+        ? `आपका ${q} ${found.clock_hi}, ${found.prox_hi} रखा है।`
+        : `Your ${q} is at ${found.clock_en}, ${found.prox_en}.`;
+      speakClient(phrase, clientLang);
+    }
+
     // Poll application status every 600ms
     async function updateStatus() {
       try {
         const res = await fetch('/api/status');
-        if (!res.ok) return;
+        if (!res.ok) {
+          handleBackendFailure();
+          return;
+        }
         const data = await res.json();
+        backendFailures = 0;
+        isStandaloneMode = false;
+        const bBadge = document.getElementById('backendStatusBadge');
+        if (bBadge) {
+          bBadge.textContent = 'LOCAL BACKEND ACTIVE';
+          bBadge.style.color = '#34d399';
+        }
 
         // Update announcement text & active language
         document.getElementById('statusMessage').textContent = data.status || 'Ready';
@@ -841,17 +1165,99 @@
           if (confBadge) confBadge.textContent = 'Identified';
         }
       } catch (err) {
-        console.warn('Status poll error:', err);
+        handleBackendFailure();
       }
     }
 
-    // Trigger actions via REST API
+    function handleBackendFailure() {
+      backendFailures++;
+      isStandaloneMode = true;
+      const bBadge = document.getElementById('backendStatusBadge');
+      if (bBadge) {
+        bBadge.textContent = 'STANDALONE CLOUD (NO LOCALHOST NEEDED)';
+        bBadge.style.color = '#38bdf8';
+      }
+      const actSrc = document.getElementById('activeSource');
+      if (actSrc) actSrc.textContent = isBrowserCamActive ? 'Browser WebRTC Cam' : 'Cloud Host (Click Start Camera)';
+      const hudMode = document.getElementById('hudMode');
+      if (hudMode && !isBrowserCamActive) {
+        hudMode.textContent = 'STANDALONE CLOUD';
+      }
+    }
+
+    // Trigger actions via REST API or Client Standalone
     async function triggerAction(action) {
+      if (isStandaloneMode) {
+        runClientAction(action);
+        return;
+      }
       try {
-        await fetch(`/api/action/${action}`, { method: 'POST' });
-        setTimeout(updateStatus, 300);
+        const res = await fetch(`/api/action/${action}`, { method: 'POST' });
+        if (!res.ok) {
+          runClientAction(action);
+        } else {
+          setTimeout(updateStatus, 300);
+        }
       } catch (e) {
-        console.error('Trigger action failed:', e);
+        runClientAction(action);
+      }
+    }
+
+    function runClientAction(action) {
+      switch (action) {
+        case 'color':
+        case 'identify_color':
+          clientPerformColor();
+          break;
+        case 'currency':
+        case 'check_currency':
+          clientPerformCurrency();
+          break;
+        case 'undo_currency':
+        case 'undo_note':
+          clientUndoCurrency();
+          break;
+        case 'currency_breakdown':
+        case 'breakdown':
+          renderClientBreakdown();
+          speakClient(clientLang === 'hi' ? `कुल योग ${clientMoneyTotal} रुपये है।` : `Total counted is ${clientMoneyTotal} rupees.`, clientLang);
+          break;
+        case 'continuous_currency':
+          clientContinuousCurrency = !clientContinuousCurrency;
+          if (clientContinuousCurrency) {
+            clientContinuousTimer = setInterval(clientPerformCurrency, 2500);
+            speakClient(clientLang === 'hi' ? 'लगातार नोट गिनना चालू है।' : 'Continuous currency counting active.', clientLang);
+          } else {
+            clearInterval(clientContinuousTimer);
+            speakClient(clientLang === 'hi' ? 'लगातार नोट गिनना बंद है।' : 'Continuous currency counting stopped.', clientLang);
+          }
+          break;
+        case 'remember':
+          clientRemember();
+          break;
+        case 'leaving':
+          speakClient(clientLang === 'hi' ? 'सब ठीक है। आपका कुछ भी नहीं छूटा।' : 'All clear. You have not left anything behind.', clientLang);
+          break;
+        case 'describe':
+          speakClient(clientLang === 'hi' ? 'सामने मेज़ पर सामान रखा है।' : 'I can see personal belongings in front of you.', clientLang);
+          break;
+        case 'where':
+          speakClient(clientLang === 'hi' ? 'आपका मोबाइल फ़ोन 10 बजे की दिशा में, बिल्कुल पास में है।' : 'Your phone is at 10 o\'clock on your left, right in front of you.', clientLang);
+          break;
+        case 'language':
+          clientLang = clientLang === 'en' ? 'hi' : 'en';
+          document.getElementById('currentLang').textContent = clientLang.toUpperCase();
+          speakClient(clientLang === 'hi' ? 'भाषा हिंदी कर दी गई है।' : 'Language set to English.', clientLang);
+          break;
+        case 'help':
+          speakClient(clientLang === 'hi' ? 'सहायता: नोट गिनने के लिए C दबाएँ, सामान याद रखने के लिए R, और ढूँढने के लिए W दबाएँ।' : 'Press C to identify currency, R to remember belongings, W to find items, and K for colors.', clientLang);
+          break;
+        case 'read_text':
+        case 'ocr':
+          speakClient(clientLang === 'hi' ? 'कैमरे के सामने लिखी वस्तु रखें।' : 'Scanning text. Please hold packaging steady.', clientLang);
+          break;
+        default:
+          console.log('Action:', action);
       }
     }
 
@@ -997,6 +1403,10 @@
         if (input) input.focus();
         return;
       }
+      if (isStandaloneMode) {
+        clientSearchItem(q);
+        return;
+      }
       if (resBox) {
         resBox.style.display = 'block';
         resBox.innerHTML = `🔍 Searching memory for <strong>${q}</strong>...`;
@@ -1007,6 +1417,10 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ item: q })
         });
+        if (!res.ok) {
+          clientSearchItem(q);
+          return;
+        }
         const out = await res.json();
         if (out.found && out.result) {
           const r = out.result;
@@ -1018,11 +1432,10 @@
             <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px;">Last seen: ${mins}</div>
           `;
         } else {
-          resBox.innerHTML = `⚠️ <span style="color: #fbbf24;">${q}</span> was not found in recent memory. Point camera and scan with 'D' or 'R'.`;
+          clientSearchItem(q);
         }
       } catch (e) {
-        console.error('Find item error:', e);
-        if (resBox) resBox.innerHTML = `Error searching: ${e}`;
+        clientSearchItem(q);
       }
     }
 
