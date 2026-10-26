@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vistara Vision — iPhone Camera Transmitter</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #videoPreview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(1);
+    }
+    .hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+      z-index: 10;
+    }
+    .badge {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+      color: #10b981;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge.transmitting {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: #06b6d4;
+      color: #06b6d4;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .instructions {
+      position: absolute;
+      bottom: 24px;
+      left: 16px;
+      right: 16px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      padding: 14px 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      font-size: 14px;
+      text-align: center;
+      color: #e2e8f0;
+      z-index: 10;
+    }
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #06b6d4;
+      color: #000;
+      border: none;
+      padding: 18px 32px;
+      font-size: 18px;
+      font-weight: 700;
+      border-radius: 30px;
+      box-shadow: 0 4px 25px rgba(6, 182, 212, 0.6);
+      cursor: pointer;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hud">
+    <div class="badge" id="statusBadge">
+      <div class="dot"></div>
+      <span id="statusText">Ready</span>
+    </div>
+    <div style="font-size: 13px; color: #94a3b8;" id="fpsCounter">0 FPS</div>
+  </div>
+
+  <button id="startBtn" onclick="startCamera()">Start Camera Stream</button>
+
+  <video id="videoPreview" autoplay playsinline muted></video>
+  <canvas id="captureCanvas" style="display: none;"></canvas>
+
+  <div class="instructions" id="infoBox">
+    Tap <strong>Start Camera Stream</strong> to broadcast directly to Vistara Vision.
+  </div>
+
+  <script>
+    let isStreaming = false;
+    let video = document.getElementById('videoPreview');
+    let canvas = document.getElementById('captureCanvas');
+    let ctx = canvas.getContext('2d');
+    let startBtn = document.getElementById('startBtn');
+    let statusText = document.getElementById('statusText');
+    let statusBadge = document.getElementById('statusBadge');
+    let fpsCounter = document.getElementById('fpsCounter');
+    let framesSent = 0;
+    let lastFpsUpdate = Date.now();
+
+    // Prevent screen from dimming/sleeping
+    async function keepScreenAwake() {
+      try {
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.warn('WakeLock error:', err);
+      }
+    }
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' }, // Back camera
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        await video.play();
+
+        startBtn.style.display = 'none';
+        isStreaming = true;
+        statusBadge.classList.add('transmitting');
+        statusText.textContent = 'Transmitting Live';
+        document.getElementById('infoBox').innerHTML = 'Broadcasting back camera to laptop. Keep this screen open.';
+
+        keepScreenAwake();
+
+        canvas.width = 1280;
+        canvas.height = 720;
+
+        streamLoop();
+      } catch (err) {
+        alert('Camera access denied or error: ' + err.message);
+      }
+    }
+
+    let isUploading = false;
+
+    async function streamLoop() {
+      if (!isStreaming) return;
+
+      if (!isUploading && video.videoWidth > 0) {
+        isUploading = true;
+
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            try {
+              const res = await fetch('/api/upload_frame', {
+                method: 'POST',
+                headers: { 'Content-Type': 'image/jpeg' },
+                body: blob
+              });
+              if (res.ok) {
+                framesSent++;
+                const now = Date.now();
+                if (now - lastFpsUpdate >= 1000) {
+                  fpsCounter.textContent = framesSent + ' FPS';
+                  framesSent = 0;
+                  lastFpsUpdate = now;
+                }
+              }
+            } catch (e) {
+              console.warn('Upload error:', e);
+            }
+          }
+          isUploading = false;
+        }, 'image/jpeg', 0.7); // 70% quality for high speed
+      }
+
+      requestAnimationFrame(streamLoop);
+    }
+  </script>
+</body>
+</html>

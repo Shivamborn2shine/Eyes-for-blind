@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vistara Vision — Assistive Vision Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 24, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #06b6d4;
+      --accent-glow: rgba(6, 182, 212, 0.25);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: radial-gradient(circle at top right, #111827, #090d16 70%);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #06b6d4, #3b82f6);
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .brand-logo svg {
+      width: 24px;
+      height: 24px;
+      stroke: #fff;
+    }
+
+    .brand h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, #ffffff, #a5f3fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #34d399;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    /* Main Grid Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Card Styling */
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Live Video Feed Container */
+    .video-viewport {
+      position: relative;
+      width: 100%;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    .video-viewport img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .hud-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .hud-badge {
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: #38bdf8;
+    }
+
+    /* Spoken Subtitle Banner */
+    .speech-banner {
+      margin-top: 18px;
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(59, 130, 246, 0.08));
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+
+    .speech-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(6, 182, 212, 0.2);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .speech-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--accent);
+    }
+
+    .speech-content {
+      flex: 1;
+    }
+
+    .speech-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .speech-text {
+      font-size: 1.05rem;
+      font-weight: 500;
+      color: #fff;
+      margin-top: 2px;
+    }
+
+    /* Action Buttons Grid */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .btn-action {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 14px 12px;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-action:hover {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+
+    .btn-action:active {
+      transform: translateY(0);
+    }
+
+    .btn-key {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 2px 7px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #7dd3fc;
+    }
+
+    .btn-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    /* Sidebar Panels */
+    .sidebar-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Chips for detected items */
+    .chips-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 48px;
+    }
+
+    .chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chip-pos {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: #38bdf8;
+      background: rgba(6, 182, 212, 0.15);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .empty-note {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 8px 0;
+    }
+
+    /* Currency Counter Display */
+    .currency-hero {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 8px 0;
+    }
+
+    .currency-symbol {
+      font-size: 1.5rem;
+      color: #34d399;
+      font-weight: 700;
+    }
+
+    .currency-amount {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.03em;
+    }
+
+    /* Camera Switch Form */
+    .source-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .source-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 0.85rem;
+    }
+
+    .source-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .btn-apply {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-apply:hover { opacity: 0.9; }
+
+    /* Last Seen Audit Table */
+    .audit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .audit-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+    }
+
+    .audit-time {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .quick-teach-tag {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .quick-teach-tag:hover {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #fbbf24;
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">
+        <svg fill="none" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      </div>
+      <div>
+        <h1>VISTARA VISION</h1>
+        <p>Smart Assistive Vision & Item Memory Dashboard</p>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <div class="status-pill" id="langPill">
+        <span>LANG:</span> <strong id="currentLang">EN</strong>
+      </div>
+      <div class="status-pill">
+        <div class="pulse-dot"></div>
+        <span id="activeSource">Camera 0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <div class="dashboard-grid">
+
+    <!-- Left Column: Video Feed & Action Controls -->
+    <div>
+      <div class="card">
+        <div class="card-title">
+          <span>Live Camera View & AI Detection</span>
+          <span style="font-size: 0.75rem; color: #34d399;" id="fpsBadge">60 FPS</span>
+        </div>
+
+        <div class="video-viewport">
+          <img src="/video_feed" alt="Live Camera Stream" id="videoStream">
+          <div class="hud-overlay">
+            <span class="hud-badge" id="hudStatus">AI: TRACKING</span>
+            <span class="hud-badge" id="hudPerson">User in view</span>
+          </div>
+        </div>
+
+        <!-- Spoken Voice Ticker -->
+        <div class="speech-banner">
+          <div class="speech-icon">
+            <svg fill="none" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+          </div>
+          <div class="speech-content">
+            <div class="speech-label">Spoken Announcement</div>
+            <div class="speech-text" id="statusMessage">Vistara Vision is ready.</div>
+          </div>
+        </div>
+
+        <!-- Tactile Control Buttons -->
+        <div class="card-title" style="margin-top: 20px;">Remote Controls & Actions</div>
+        <div class="controls-grid">
+          <button class="btn-action" onclick="triggerAction('currency')">
+            <span class="btn-key">C</span>
+            <span class="btn-label">Check Currency</span>
+          </button>
+          <button class="btn-action" onclick="triggerAction('remember')">
+            <span class="btn-key">R</span>
+            <span class="btn-label">Remember Items</span>
+          </button>
+          <button class="btn-action" onclick="triggerAction('leaving')">
+            <span class="btn-key">L</span>
+            <span class="btn-label">Check Leaving</span>
+          </button>
+          <button class="btn-action" onclick="triggerAction('describe')">
+            <span class="btn-key">D</span>
+            <span class="btn-label">Describe Scene</span>
+          </button>
+          <button class="btn-action" onclick="triggerAction('where')">
+            <span class="btn-key">W</span>
+            <span class="btn-label">Where is My...</span>
+          </button>
+          <button class="btn-action" style="border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08);" onclick="teachPrompt()">
+            <span class="btn-key" style="color: #fbbf24;">T</span>
+            <span class="btn-label" style="color: #fbbf24;">Teach Object</span>
+          </button>
+          <button class="btn-action" style="border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.08);" onclick="triggerAction('read_text')">
+            <span class="btn-key" style="color: #c084fc;">O</span>
+            <span class="btn-label" style="color: #c084fc;">Read Text (OCR)</span>
+          </button>
+          <button class="btn-action" style="border-color: rgba(236, 72, 153, 0.4); background: rgba(236, 72, 153, 0.08);" onclick="triggerAction('color')">
+            <span class="btn-key" style="color: #f472b6;">K</span>
+            <span class="btn-label" style="color: #f472b6;">Identify Color</span>
+          </button>
+          <button class="btn-action" id="btnContinuousCurrency" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);" onclick="triggerAction('continuous_currency')">
+            <span class="btn-key" style="color: #34d399;">X</span>
+            <span class="btn-label" id="lblContinuousCurrency" style="color: #34d399;">Auto-Count Cash</span>
+          </button>
+          <button class="btn-action" onclick="triggerAction('undo_currency')">
+            <span class="btn-key">U</span>
+            <span class="btn-label">Undo Note</span>
+          </button>
+          <button class="btn-action" onclick="triggerAction('language')">
+            <span class="btn-key">H</span>
+            <span class="btn-label">Switch Lang</span>
+          </button>
+          <button class="btn-action" onclick="triggerAction('help')">
+            <span class="btn-key">F1</span>
+            <span class="btn-label">Audio Help</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Live Detection & Memory State -->
+    <div class="sidebar-stack">
+
+      <!-- Real-time Objects In View -->
+      <div class="card">
+        <div class="card-title">
+          <span>Currently in View</span>
+          <span style="font-size: 0.72rem; color: var(--accent);" id="detCount">0 objects</span>
+        </div>
+        <div class="chips-container" id="currentDetections">
+          <div class="empty-note">No objects currently detected</div>
+        </div>
+      </div>
+
+      <!-- Remembered Items Snapshot -->
+      <div class="card">
+        <div class="card-title">
+          <span>Remembered Belongings (Snapshot)</span>
+          <button onclick="triggerAction('clear_memory')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.75rem;">Clear</button>
+        </div>
+        <div class="chips-container" id="rememberedItems">
+          <div class="empty-note">No belongings memorized yet. Press 'R' to save.</div>
+        </div>
+      </div>
+
+      <!-- Spatial Memory Belongings Finder -->
+      <div class="card" style="border: 1px solid rgba(56, 189, 248, 0.4); background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(18, 24, 38, 0.85));">
+        <div class="card-title" style="color: #38bdf8;">
+          <span>📍 Belongings Finder (Spatial Clock)</span>
+          <span style="font-size: 0.72rem; color: #38bdf8;" id="memoryItemsCount">Clock Map</span>
+        </div>
+        <p style="font-size: 0.78rem; color: #cbd5e1; margin-top: 4px; line-height: 1.4;">
+          Recall where you left items with <strong>clock-face angles</strong> (10 o'clock, 2 o'clock) & distance.
+        </p>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <input type="text" id="findItemInput" class="source-input" placeholder="Where is my... phone, keys, bottle?" onkeydown="if(event.key==='Enter') searchItem()">
+          <button class="btn-apply" style="background: #0284c7; color: #fff; font-weight: 600; white-space: nowrap;" onclick="searchItem()">Find (W)</button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+          <button class="quick-teach-tag" onclick="quickFind('phone')">🔍 Phone</button>
+          <button class="quick-teach-tag" onclick="quickFind('keys')">🔍 Keys</button>
+          <button class="quick-teach-tag" onclick="quickFind('wallet')">🔍 Wallet</button>
+          <button class="quick-teach-tag" onclick="quickFind('bottle')">🔍 Bottle</button>
+          <button class="quick-teach-tag" onclick="quickFind('laptop')">🔍 Laptop</button>
+          <button class="quick-teach-tag" onclick="quickFind('headphone')">🔍 Headphone</button>
+        </div>
+        <div id="findItemResult" style="display:none; margin-top: 10px; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.4); border-left: 3px solid #38bdf8; font-size: 0.82rem; color: #e2e8f0;"></div>
+      </div>
+
+      <!-- Currency Session -->
+      <div class="card">
+        <div class="card-title">
+          <span>Currency Session Total</span>
+          <div style="display:flex; gap: 8px;">
+            <button onclick="triggerAction('currency_breakdown')" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:0.75rem;">Breakdown</button>
+            <button onclick="triggerAction('undo_currency')" style="background:none; border:none; color:#fbbf24; cursor:pointer; font-size:0.75rem;">Undo</button>
+            <button onclick="triggerAction('reset_total')" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem;">Reset</button>
+          </div>
+        </div>
+        <div class="currency-hero">
+          <span class="currency-symbol">&#8377;</span>
+          <span class="currency-amount" id="currencyTotal">0</span>
+          <span id="currencyModeBadge" style="font-size: 0.72rem; margin-left: auto; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.06); color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">MANUAL (C)</span>
+        </div>
+        <div id="currencyBreakdownContainer" style="margin-top: 8px; font-size: 0.78rem; color: #94a3b8; display: flex; flex-wrap: wrap; gap: 6px;"></div>
+      </div>
+
+      <!-- Real-time OCR Text Card -->
+      <div class="card" id="cardOcr" style="border: 1px solid rgba(168, 85, 247, 0.4); background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(18, 24, 38, 0.85));">
+        <div class="card-title" style="color: #c084fc;">
+          <span>📖 Read Text (Offline OCR)</span>
+          <span style="font-size: 0.72rem; color: #c084fc;" id="ocrWordsBadge">Ready</span>
+        </div>
+        <div id="ocrContent" style="margin-top: 8px; font-size: 0.88rem; line-height: 1.5; color: #f1f5f9; background: rgba(0,0,0,0.35); padding: 12px; border-radius: 8px; min-height: 48px; white-space: pre-wrap; word-break: break-word; font-family: 'Inter', sans-serif;">
+          <span style="color: var(--text-muted); font-style: italic;">Hold medicine bottle, packaging, or letter to camera and press 'O'</span>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="btn-apply" style="background: #a855f7; color: #fff; padding: 6px 14px; font-size: 0.78rem;" onclick="triggerAction('read_text')">Scan Text (O)</button>
+          <button class="btn-apply" style="background: rgba(255,255,255,0.1); color: #fff; padding: 6px 14px; font-size: 0.78rem;" onclick="copyOcrText()">Copy</button>
+        </div>
+      </div>
+
+      <!-- Assistive Color Inspector Card -->
+      <div class="card" id="cardColor" style="border: 1px solid rgba(236, 72, 153, 0.4); background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(18, 24, 38, 0.85));">
+        <div class="card-title" style="color: #f472b6;">
+          <span>🎨 Assistive Color Inspector</span>
+          <span style="font-size: 0.72rem; color: #f472b6;" id="colorConfBadge">Ready</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px; margin-top: 8px; background: rgba(0,0,0,0.35); padding: 12px; border-radius: 8px;">
+          <div id="colorSwatch" style="width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); background: #334155; box-shadow: 0 0 16px rgba(0,0,0,0.4); flex-shrink: 0; transition: background 0.3s;"></div>
+          <div>
+            <div id="colorNameDisplay" style="font-size: 1.1rem; font-weight: 700; color: #fff;">No color inspected</div>
+            <div id="colorSubDisplay" style="font-size: 0.76rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 2px;">Hold object in center and press 'K'</div>
+          </div>
+        </div>
+        <div style="margin-top: 10px;">
+          <button class="btn-apply" style="background: #ec4899; color: #fff; padding: 6px 14px; font-size: 0.78rem;" onclick="triggerAction('color')">Identify Color (K)</button>
+        </div>
+      </div>
+
+      <!-- Teachable Object Model Card -->
+      <div class="card" style="border: 1px solid rgba(245, 158, 11, 0.4); background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(18, 24, 38, 0.85));">
+        <div class="card-title" style="color: #fbbf24;">
+          <span>🧠 Teachable Object Model</span>
+          <span style="font-size: 0.72rem; color: #fbbf24; background: rgba(245, 158, 11, 0.2); padding: 2px 7px; border-radius: 5px;">FEW-SHOT AI</span>
+        </div>
+        <p style="font-size: 0.8rem; color: #cbd5e1; line-height: 1.4; margin-top: 4px;">
+          Hold an object to the camera, type its name, and click <strong>Learn</strong>. Instant visual learning without waiting!
+        </p>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <input type="text" id="teachLabelInput" class="source-input" placeholder="e.g. 20 rupee note, headphone, table..." onkeydown="if(event.key==='Enter') submitTeach()">
+          <button class="btn-apply" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; font-weight: 700; white-space: nowrap;" onclick="submitTeach()">Learn (T)</button>
+        </div>
+        <div style="background: rgba(0, 0, 0, 0.4); border-left: 3px solid #fbbf24; padding: 8px 10px; border-radius: 4px; margin-top: 10px; font-size: 0.76rem; color: #cbd5e1; line-height: 1.4;">
+          <strong>💡 Accuracy Rule:</strong> Hold the item close to the camera (middle box) so it fills the view, then click <strong>Learn</strong>. If the camera sees an empty room when you click Learn, it will learn the empty room as the object!
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+          <button class="quick-teach-tag" onclick="quickTeach('20 rupee note')">+ ₹20 Note</button>
+          <button class="quick-teach-tag" onclick="quickTeach('50 rupee note')">+ ₹50 Note</button>
+          <button class="quick-teach-tag" onclick="quickTeach('headphone')">+ Headphone</button>
+          <button class="quick-teach-tag" onclick="quickTeach('table')">+ Table</button>
+          <button class="quick-teach-tag" onclick="quickTeach('wallet')">+ Wallet</button>
+          <button class="quick-teach-tag" onclick="quickTeach('keys')">+ Keys</button>
+          <button class="quick-teach-tag" style="border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.12); color: #38bdf8;" onclick="quickTeach('background')">🛡️ Empty Background</button>
+        </div>
+        <div style="margin-top: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600;">Learned Custom Classes</span>
+            <button onclick="clearAllTaughtClasses()" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.75rem;">Clear All</button>
+          </div>
+          <div class="chips-container" id="taughtClassesList">
+            <div class="empty-note">No custom objects learned yet. Teach one above!</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Last Seen Belongings Log -->
+      <div class="card">
+        <div class="card-title">Recent Belongings Log</div>
+        <div class="audit-list" id="lastSeenList">
+          <div class="empty-note">No sightings logged yet.</div>
+        </div>
+      </div>
+
+      <!-- iPhone Direct Stream Card -->
+      <div class="card" style="border: 1px solid rgba(6, 182, 212, 0.4); background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(18, 24, 38, 0.8));">
+        <div class="card-title" style="color: #38bdf8;">
+          <span>📱 iPhone Direct Camera Cast</span>
+          <span style="font-size: 0.72rem; color: #10b981; font-weight: 700;">NO APPS NEEDED</span>
+        </div>
+        <p style="font-size: 0.82rem; color: #cbd5e1; line-height: 1.4;">
+          Open Safari on your iPhone (connected to Wi-Fi) and type:
+        </p>
+        <div style="margin: 10px 0; background: rgba(0,0,0,0.5); padding: 10px 14px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; color: #38bdf8; border: 1px dashed rgba(6, 182, 212, 0.5); word-break: break-all;">
+          https://192.168.1.7:5000/cam
+        </div>
+        <p style="font-size: 0.75rem; color: #94a3b8; line-height: 1.4;">
+          <strong>Note for Safari:</strong> Tap <em>"Show Details"</em> &rarr; <em>"visit this website"</em> to bypass the local security warning. Then tap <strong>Start Camera Stream</strong>!
+        </p>
+      </div>
+
+      <!-- Camera Source Switcher -->
+      <div class="card">
+        <div class="card-title">Camera Input Source</div>
+        <p style="font-size: 0.78rem; color: var(--text-muted);">
+          Supports <code>auto</code>, camera index (0, 1), or AirPlay mirror window (e.g. <code>screen:LonelyScreen</code>).
+        </p>
+        <div class="source-bar">
+          <input type="text" id="sourceInput" class="source-input" placeholder="e.g. auto, 0, 1, screen:LonelyScreen">
+          <button class="btn-apply" onclick="switchCamera()">Switch</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Poll application status every 600ms
+    async function updateStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Update announcement text & active language
+        document.getElementById('statusMessage').textContent = data.status || 'Ready';
+        document.getElementById('currentLang').textContent = (data.language || 'en').toUpperCase();
+        document.getElementById('currencyTotal').textContent = data.money_total || 0;
+        document.getElementById('activeSource').textContent = data.camera_source;
+
+        // Auto-watch badge
+        const personBadge = document.getElementById('hudPerson');
+        if (data.person_in_view) {
+          personBadge.textContent = 'User present';
+          personBadge.style.color = '#34d399';
+        } else {
+          personBadge.textContent = 'User absent';
+          personBadge.style.color = '#f59e0b';
+        }
+
+        // Render current detections
+        const detContainer = document.getElementById('currentDetections');
+        const dets = data.current_detections || [];
+        document.getElementById('detCount').textContent = `${dets.length} objects`;
+        if (dets.length === 0) {
+          detContainer.innerHTML = '<div class="empty-note">No objects currently detected</div>';
+        } else {
+          detContainer.innerHTML = dets.map(d => `
+            <div class="chip">
+              <strong>${d.name}</strong>
+              <span class="chip-pos">${d.position}</span>
+              <span style="font-size:0.7rem; color:var(--text-muted);">${Math.round(d.conf * 100)}%</span>
+            </div>
+          `).join('');
+        }
+
+        // Render remembered snapshot items
+        const remContainer = document.getElementById('rememberedItems');
+        const snapshot = data.snapshot || {};
+        const snapKeys = Object.keys(snapshot);
+        if (snapKeys.length === 0) {
+          remContainer.innerHTML = '<div class="empty-note">No belongings memorized yet. Press "R" to save.</div>';
+        } else {
+          remContainer.innerHTML = snapKeys.map(k => `
+            <div class="chip" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);">
+              <span style="color:#34d399;">&#10003;</span>
+              <strong>${snapshot[k]} ${k}</strong>
+              <span class="chip-pos">${data.snapshot_pos[k] || 'center'}</span>
+            </div>
+          `).join('');
+        }
+
+        // Render last seen audit log
+        const lastSeenContainer = document.getElementById('lastSeenList');
+        const lastSeen = data.last_seen || {};
+        const itemKeys = Object.keys(lastSeen);
+        if (itemKeys.length === 0) {
+          lastSeenContainer.innerHTML = '<div class="empty-note">No sightings logged yet.</div>';
+        } else {
+          lastSeenContainer.innerHTML = itemKeys.map(k => {
+            const item = lastSeen[k];
+            const secondsAgo = Math.max(0, Math.round(Date.now() / 1000 - item.time));
+            const timeStr = secondsAgo < 60 ? `${secondsAgo}s ago` : `${Math.floor(secondsAgo/60)}m ago`;
+            return `
+              <div class="audit-item">
+                <span><strong>${k}</strong> (${item.pos})</span>
+                <span class="audit-time">${timeStr}</span>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // Render taught classes
+        renderTaughtClasses(data.taught_classes);
+
+        // Update Continuous Currency indicator
+        const ccBadge = document.getElementById('currencyModeBadge');
+        const ccBtn = document.getElementById('btnContinuousCurrency');
+        const ccLbl = document.getElementById('lblContinuousCurrency');
+        if (data.continuous_currency) {
+          if (ccBadge) {
+            ccBadge.textContent = 'AUTO-COUNT ACTIVE';
+            ccBadge.style.color = '#34d399';
+            ccBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+            ccBadge.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+          }
+          if (ccBtn) ccBtn.style.boxShadow = '0 0 16px rgba(16, 185, 129, 0.4)';
+          if (ccLbl) ccLbl.textContent = 'Auto-Count (ON)';
+        } else {
+          if (ccBadge) {
+            ccBadge.textContent = 'MANUAL (C)';
+            ccBadge.style.color = 'var(--text-muted)';
+            ccBadge.style.background = 'rgba(255,255,255,0.06)';
+            ccBadge.style.border = 'none';
+          }
+          if (ccBtn) ccBtn.style.boxShadow = 'none';
+          if (ccLbl) ccLbl.textContent = 'Auto-Count Cash';
+        }
+
+        // Update OCR Reader Card
+        const ocrData = data.ocr_result;
+        if (ocrData && ocrData.text) {
+          const ocrBox = document.getElementById('ocrContent');
+          if (ocrBox) ocrBox.textContent = ocrData.text;
+          const ocrBadge = document.getElementById('ocrWordsBadge');
+          if (ocrBadge) ocrBadge.textContent = `${ocrData.word_count || 0} words`;
+        }
+
+        // Update Color Inspector Card
+        const colorData = data.color_result;
+        if (colorData && colorData.name_en) {
+          const swatch = document.getElementById('colorSwatch');
+          if (swatch) swatch.style.background = colorData.hex || colorData.actual_hex || '#fff';
+          const nameEl = document.getElementById('colorNameDisplay');
+          if (nameEl) nameEl.textContent = `${colorData.name_en} (${colorData.name_hi})`;
+          const subEl = document.getElementById('colorSubDisplay');
+          if (subEl) subEl.textContent = `${colorData.hex} • ${Math.round(colorData.conf * 100)}% match`;
+          const confBadge = document.getElementById('colorConfBadge');
+          if (confBadge) confBadge.textContent = 'Identified';
+        }
+      } catch (err) {
+        console.warn('Status poll error:', err);
+      }
+    }
+
+    // Trigger actions via REST API
+    async function triggerAction(action) {
+      try {
+        await fetch(`/api/action/${action}`, { method: 'POST' });
+        setTimeout(updateStatus, 300);
+      } catch (e) {
+        console.error('Trigger action failed:', e);
+      }
+    }
+
+    // Switch camera source on the fly
+    async function switchCamera() {
+      const input = document.getElementById('sourceInput');
+      const val = input.value.trim();
+      if (!val) return;
+      try {
+        const res = await fetch('/api/switch_camera', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: val })
+        });
+        const out = await res.json();
+        if (out.ok) {
+          alert('Camera switched successfully!');
+          input.value = '';
+          updateStatus();
+        } else {
+          alert('Failed to switch camera: ' + (out.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Error contacting server: ' + e);
+      }
+    }
+
+    // Render taught classes list
+    function renderTaughtClasses(taughtMap) {
+      const container = document.getElementById('taughtClassesList');
+      if (!container) return;
+      const keys = Object.keys(taughtMap || {});
+      if (keys.length === 0) {
+        container.innerHTML = '<div class="empty-note">No custom objects learned yet. Teach one above!</div>';
+        return;
+      }
+      container.innerHTML = keys.map(k => {
+        const count = taughtMap[k];
+        return `
+          <div class="chip" style="border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08);">
+            <strong style="color: #fbbf24;">${k}</strong>
+            <span class="chip-pos" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">${count} samples</span>
+            <button onclick="deleteTaughtClass('${k}')" title="Delete class" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.85rem; padding:0 4px; line-height:1;">&times;</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Submit a teaching request
+    async function submitTeach(customLabel) {
+      const input = document.getElementById('teachLabelInput');
+      const label = (customLabel || (input ? input.value : '')).trim();
+      if (!label) {
+        alert('Please enter a name for the object (e.g. "20 rupee note", "headphone").');
+        if (input) input.focus();
+        return;
+      }
+      try {
+        const res = await fetch('/api/teach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: label })
+        });
+        const out = await res.json();
+        if (out.ok) {
+          if (input) input.value = '';
+          setTimeout(updateStatus, 500);
+        } else {
+          alert('Failed to teach object: ' + (out.error || 'Unknown error'));
+        }
+      } catch (e) {
+        console.error('Teach error:', e);
+      }
+    }
+
+    // Quick teach via pill buttons
+    function quickTeach(label) {
+      submitTeach(label);
+    }
+
+    // Prompt triggered by hotkey or button
+    function teachPrompt() {
+      const input = document.getElementById('teachLabelInput');
+      if (input) {
+        input.focus();
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const label = prompt('Enter object name to teach (e.g. 20 rupee note, headphone, table):');
+      if (label && label.trim()) {
+        submitTeach(label.trim());
+      }
+    }
+
+    // Delete a taught class
+    async function deleteTaughtClass(label) {
+      if (!confirm(`Are you sure you want to delete the learned model for "${label}"?`)) return;
+      try {
+        const res = await fetch(`/api/delete_class/${encodeURIComponent(label)}`, { method: 'DELETE' });
+        const out = await res.json();
+        if (out.ok) {
+          updateStatus();
+        } else {
+          alert('Failed to delete: ' + (out.error || 'Unknown error'));
+        }
+      } catch (e) {
+        console.error('Delete error:', e);
+      }
+    }
+
+    // Clear all taught classes
+    async function clearAllTaughtClasses() {
+      if (!confirm('Clear all custom taught objects? (You can re-teach them anytime)')) return;
+      try {
+        const res = await fetch('/api/clear_classes', { method: 'POST' });
+        const out = await res.json();
+        if (out.ok) {
+          updateStatus();
+        } else {
+          alert('Failed to clear: ' + (out.error || 'Unknown error'));
+        }
+      } catch (e) {
+        console.error('Clear error:', e);
+      }
+    }
+
+    // Copy OCR recognized text to clipboard
+    function copyOcrText() {
+      const box = document.getElementById('ocrContent');
+      if (!box || !box.textContent.trim()) return;
+      navigator.clipboard.writeText(box.textContent.trim()).then(() => {
+        alert('OCR text copied to clipboard!');
+      }).catch(err => {
+        alert('Unable to copy: ' + err);
+      });
+    }
+
+    // Spatial Memory Item Search
+    async function searchItem(customQuery) {
+      const input = document.getElementById('findItemInput');
+      const q = (customQuery || (input ? input.value : '')).trim();
+      const resBox = document.getElementById('findItemResult');
+      if (!q) {
+        if (input) input.focus();
+        return;
+      }
+      if (resBox) {
+        resBox.style.display = 'block';
+        resBox.innerHTML = `🔍 Searching memory for <strong>${q}</strong>...`;
+      }
+      try {
+        const res = await fetch('/api/find_item', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item: q })
+        });
+        const out = await res.json();
+        if (out.found && out.result) {
+          const r = out.result;
+          const mins = r.minutes_ago === 0 ? 'just now' : `${r.minutes_ago}m ago`;
+          resBox.innerHTML = `
+            <div style="font-weight: 700; color: #38bdf8; font-size: 0.95rem; margin-bottom: 4px;">🎯 Found: ${r.name}</div>
+            <div>⏰ Direction: <strong style="color: #fff;">${r.clock_en}</strong> (${r.clock_hi})</div>
+            <div>📏 Proximity: <strong style="color: #fff;">${r.prox_en}</strong> (${r.prox_hi})</div>
+            <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px;">Last seen: ${mins}</div>
+          `;
+        } else {
+          resBox.innerHTML = `⚠️ <span style="color: #fbbf24;">${q}</span> was not found in recent memory. Point camera and scan with 'D' or 'R'.`;
+        }
+      } catch (e) {
+        console.error('Find item error:', e);
+        if (resBox) resBox.innerHTML = `Error searching: ${e}`;
+      }
+    }
+
+    function quickFind(item) {
+      const input = document.getElementById('findItemInput');
+      if (input) input.value = item;
+      searchItem(item);
+    }
+
+    // Currency Breakdown display
+    async function fetchCurrencyBreakdown() {
+      try {
+        const res = await fetch('/api/currency_breakdown');
+        if (!res.ok) return;
+        const data = await res.json();
+        const bd = data.breakdown || {};
+        const container = document.getElementById('currencyBreakdownContainer');
+        if (!container) return;
+        const counts = bd.counts || {};
+        const denoms = Object.keys(counts);
+        if (denoms.length === 0) {
+          container.innerHTML = '';
+          return;
+        }
+        container.innerHTML = denoms.map(d => `
+          <span style="background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); padding: 3px 8px; border-radius: 6px; color: var(--accent); font-size: 0.75rem; font-family: 'JetBrains Mono', monospace;">
+            ${counts[d]}x &#8377;${d}
+          </span>
+        `).join('');
+      } catch (e) {
+        console.warn('Breakdown fetch error:', e);
+      }
+    }
+
+    setInterval(updateStatus, 600);
+    setInterval(fetchCurrencyBreakdown, 2000);
+    updateStatus();
+    fetchCurrencyBreakdown();
+  </script>
+</body>
+</html>

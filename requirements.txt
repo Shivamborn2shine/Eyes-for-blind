@@ -1,0 +1,14 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+ultralytics
+opencv-python
+numpy
+pyttsx3
+gTTS
+pygame
+keyboard
+mss
+flask
+cryptography
+winrt-Windows.Media.Ocr
