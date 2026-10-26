@@ -12,6 +12,7 @@ ENV/
 
 # Temporary files and caches
 data/current_frame.jpg
+data/memory.json
 data/tts_cache/*.mp3
 *.log
 .knox/
