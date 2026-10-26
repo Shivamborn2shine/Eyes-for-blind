@@ -129,6 +129,22 @@ class Speaker:
         return self._play_mp3(path)
 
     def _play_mp3(self, path):
+        # 1. Native Windows Multimedia API (zero external dependencies, 100% offline)
+        if sys.platform.startswith("win"):
+            try:
+                import ctypes
+                import uuid
+                alias = f"mp3_{uuid.uuid4().hex[:8]}"
+                p = str(path.resolve())
+                ret = ctypes.windll.winmm.mciSendStringW(f'open "{p}" type mpegvideo alias {alias}', None, 0, None)
+                if ret == 0:
+                    ctypes.windll.winmm.mciSendStringW(f'play {alias} wait', None, 0, None)
+                    ctypes.windll.winmm.mciSendStringW(f'close {alias}', None, 0, None)
+                    return True
+            except Exception as e:
+                print("[speech] winmm playback warning:", e)
+
+        # 2. Fallback to pygame only if installed
         try:
             import os
             os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -142,8 +158,10 @@ class Speaker:
                 time.sleep(0.05)
             pygame.mixer.music.unload()
             return True
+        except ImportError:
+            return False
         except Exception as e:
-            print("[speech] mp3 playback failed:", e)
+            print("[speech] mp3 playback fallback failed:", e)
             return False
 
     def _speak_pyttsx3(self, text):

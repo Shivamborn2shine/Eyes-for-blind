@@ -6,9 +6,8 @@ opencv-python
 numpy
 pyttsx3
 gTTS
-pygame
 keyboard
 mss
 flask
 cryptography
-winrt-Windows.Media.Ocr
+winrt-Windows.Media.Ocr; sys_platform == 'win32'
